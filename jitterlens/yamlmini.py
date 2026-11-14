@@ -1,9 +1,8 @@
 """A deliberately small YAML subset parser.
 
 Supported: block mappings, block sequences, inline scalar lists, quoted
-strings, integers, floats, booleans, null and comments.  Not supported:
-anchors, aliases, tags, block scalars, multi-line strings and flow mappings.
-The subset is sufficient for the contract files shipped with this project.
+strings, decimal integers, floats, booleans, null and comments.  Anything
+outside the subset is rejected via yamlgate (E_CTR_001 with a line number).
 """
 
 from __future__ import annotations
@@ -12,6 +11,7 @@ import json
 import re
 from dataclasses import dataclass
 
+from . import yamlgate
 from .errors import JitterLensError
 
 _INT_RE = re.compile(r"^[+-]?[0-9]+$")
@@ -57,6 +57,7 @@ def _tokenize(text: str) -> list[_Line]:
         content = _strip_comment(raw, lineno).rstrip()
         if not content.strip():
             continue
+        yamlgate.check_line(content.lstrip(), lineno)
         indent = len(content) - len(content.lstrip(" "))
         result.append(_Line(indent, content[indent:], lineno))
     return result
@@ -151,6 +152,7 @@ def _parse_scalar(text: str, lineno: int) -> object:
         return True
     if lowered == "false":
         return False
+    yamlgate.check_bare_scalar(value, lineno)
     if _INT_RE.fullmatch(value):
         return int(value)
     if _FLOAT_RE.fullmatch(value):
@@ -277,10 +279,7 @@ class _Parser:
 
 
 def loads(text: str) -> object:
-    """Parse a YAML subset and return Python data.
-
-    Raises JitterLensError(E_CTR_001) with a one-based line number on failure.
-    """
+    """Parse a YAML subset; raise JitterLensError(E_CTR_001) with a line on failure."""
     if not isinstance(text, str):
         raise JitterLensError("E_CTR_001", "YAML input must be text")
     try:

@@ -9,7 +9,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
-from . import yamlmini
+from . import yamlgate, yamlmini
 from .errors import JitterLensError
 
 DEFAULT_GENERATED_AT = "1970-01-01T00:00:00Z"
@@ -178,26 +178,13 @@ def _as_fraction(value: Any, field: str) -> Fraction:
     return Fraction(str(value)).limit_denominator(1_000_000)
 
 
-def _load_with_pyyaml(text: str) -> object | None:
-    try:
-        import yaml  # type: ignore
-    except ImportError:
-        return None
-    try:
-        return yaml.safe_load(text)
-    except yaml.YAMLError as exc:
-        mark = getattr(exc, "problem_mark", None)
-        line = mark.line + 1 if mark is not None else None
-        message = getattr(exc, "problem", None) or str(exc)
-        raise JitterLensError("E_CTR_001", f"YAML parse failed: {message}", line=line) from exc
-
-
 def parse_yaml_text(text: str) -> object:
-    """Use PyYAML when available, otherwise the bundled subset parser."""
-    parsed = _load_with_pyyaml(text)
-    if parsed is None:
-        return yamlmini.loads(text)
-    return parsed
+    """Parse contract YAML through the dual-parser semantic gate.
+
+    The bundled subset parser defines the result; when PyYAML is installed
+    it must agree exactly or the parse fails (see jitterlens.yamlgate).
+    """
+    return yamlgate.gated_loads(text, yamlmini.loads)
 
 
 def _timestamp_spec(value: Any, field: str) -> TimestampSpec:
