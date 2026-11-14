@@ -9,7 +9,17 @@ from jitterlens.report.html_report import render_html, write_html
 from jitterlens.report.jsonreport import canonical_json, strip_volatile, write_json
 from jitterlens.report.markdown import render_markdown, write_markdown
 
-from tests.conftest import DEFAULT_CONTRACT_PATH, FIXTURE_DIR
+from tests.conftest import DEFAULT_CONTRACT_PATH, FIXTURE_DIR, ROOT
+
+HISTORICAL_INTERVAL_IDS = [
+    "mock-sensor-a#0001",
+    "mock-sensor-a#0002",
+    "mock-sensor-b#0001",
+    "mock-sensor-b#0002",
+    "mock-sensor-b#0003",
+    "mock-sensor-c#0001",
+    "mock-sensor-c#0002",
+]
 
 
 def _report() -> dict:
@@ -77,3 +87,38 @@ def test_markdown_escapes_pipes() -> None:
     report = copy.deepcopy(_report())
     report["sources"][0]["name"] = "source|name"
     assert "source\\|name" in render_markdown(report)
+
+
+def test_merge_metric_section_is_present_and_deterministic() -> None:
+    report = _report()
+    metric = report["merge_metric"]
+    assert metric["overlap_semantics"] == "closed"
+    assert metric["intervals_total"] == len(report["intervals"]) == 7
+    assert metric["family_count"] == 5
+    assert metric["multi_source_family_count"] == 1
+    assert metric["reducible_intervals"] == 2
+    assert metric["merged_interval_count"] == metric["family_count"]
+    assert metric["cross_source_pair_overlaps"] == 2
+    multi = [f for f in metric["families"] if f["source_count"] > 1]
+    assert len(multi) == 1
+    assert multi[0]["sources"] == ["mock-sensor-a", "mock-sensor-c"]
+    assert multi[0]["interval_ids"] == [
+        "mock-sensor-c#0001",
+        "mock-sensor-a#0001",
+        "mock-sensor-a#0002",
+    ]
+    assert _report()["merge_metric"] == metric
+
+
+def test_merge_metric_does_not_drift_historical_intervals() -> None:
+    report = _report()
+    assert [interval["id"] for interval in report["intervals"]] == HISTORICAL_INTERVAL_IDS
+    golden = json.loads(
+        (ROOT / "fixtures" / "golden" / "default_report.json").read_text(encoding="utf-8")
+    )
+    assert report["intervals"] == golden["intervals"]
+    assert report["summary"]["abnormal_intervals"] == len(HISTORICAL_INTERVAL_IDS)
+    per_source: dict[str, int] = {}
+    for interval in report["intervals"]:
+        per_source[interval["source"]] = per_source.get(interval["source"], 0) + 1
+    assert per_source == {"mock-sensor-a": 2, "mock-sensor-b": 3, "mock-sensor-c": 2}

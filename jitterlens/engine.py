@@ -9,7 +9,7 @@ from typing import Any
 
 from .config import Contract, SourceContract, load_contract
 from .core.classify import classify_timeline
-from .core.intervals import build_intervals
+from .core.intervals import build_intervals, cross_source_merge_metric
 from .core.plan import build_plans
 from .core.stats import VERDICT_ORDER, build_source_stats
 from .core.timeline import build_timelines
@@ -143,6 +143,9 @@ def analyze(
     all_intervals.sort(
         key=lambda item: (item["source"], item["start_ts"], item["end_ts"], item["start_lineno"])
     )
+    # Side-band metric: computed from the final interval list without feeding
+    # back into per-source merging, so interval ids and counts stay stable.
+    merge_metric = cross_source_merge_metric(all_intervals)
     run_id = _run_id(contract.sha256, manifest["manifest_sha256"])
     at = generated_at or contract.generated_at
     plans_document = build_plans(analyses, run_id, contract.sha256, at)
@@ -185,6 +188,7 @@ def analyze(
         },
         "sources": source_reports,
         "intervals": all_intervals,
+        "merge_metric": merge_metric,
         "parse_errors": parse_errors,
     }
     return contract, report, plans_document

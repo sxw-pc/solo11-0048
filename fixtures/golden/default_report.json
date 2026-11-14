@@ -127,6 +127,85 @@
       "start_ts": 1735689874705
     }
   ],
+  "merge_metric": {
+    "cross_source_pair_overlaps": 2,
+    "families": [
+      {
+        "cross_source_pair_overlaps": 2,
+        "end_ts": 1735689858392,
+        "interval_count": 3,
+        "interval_ids": [
+          "mock-sensor-c#0001",
+          "mock-sensor-a#0001",
+          "mock-sensor-a#0002"
+        ],
+        "source_count": 2,
+        "sources": [
+          "mock-sensor-a",
+          "mock-sensor-c"
+        ],
+        "start_ts": 1735689600000
+      },
+      {
+        "cross_source_pair_overlaps": 0,
+        "end_ts": 1735689921714,
+        "interval_count": 1,
+        "interval_ids": [
+          "mock-sensor-c#0002"
+        ],
+        "source_count": 1,
+        "sources": [
+          "mock-sensor-c"
+        ],
+        "start_ts": 1735689874705
+      },
+      {
+        "cross_source_pair_overlaps": 0,
+        "end_ts": 1735690121999,
+        "interval_count": 1,
+        "interval_ids": [
+          "mock-sensor-b#0001"
+        ],
+        "source_count": 1,
+        "sources": [
+          "mock-sensor-b"
+        ],
+        "start_ts": 1735690119501
+      },
+      {
+        "cross_source_pair_overlaps": 0,
+        "end_ts": 1735690137001,
+        "interval_count": 1,
+        "interval_ids": [
+          "mock-sensor-b#0002"
+        ],
+        "source_count": 1,
+        "sources": [
+          "mock-sensor-b"
+        ],
+        "start_ts": 1735690137001
+      },
+      {
+        "cross_source_pair_overlaps": 0,
+        "end_ts": 1735690163497,
+        "interval_count": 1,
+        "interval_ids": [
+          "mock-sensor-b#0003"
+        ],
+        "source_count": 1,
+        "sources": [
+          "mock-sensor-b"
+        ],
+        "start_ts": 1735690161502
+      }
+    ],
+    "family_count": 5,
+    "intervals_total": 7,
+    "merged_interval_count": 5,
+    "multi_source_family_count": 1,
+    "overlap_semantics": "closed",
+    "reducible_intervals": 2
+  },
   "parse_errors": [
     {
       "code": "E_READ_003",
