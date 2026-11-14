@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from statistics import median
 from typing import Any
 
@@ -25,6 +26,45 @@ def _ratio(numerator: float, denominator: float) -> float:
     if denominator <= 0:
         return 0.0
     return round(numerator / denominator, 6)
+
+
+def missing_points_between(start_ts_ms: int, end_ts_ms: int, period_ms: int) -> int:
+    """Missing-point count inside one gap bounded by two sampled endpoints.
+
+    Unified gap semantics shared by ``missing_estimate`` (report.json) and
+    ``expected_missing`` (plans.json) so a plan can be audited back against
+    the statistics on the same interval:
+
+    * Both endpoints are treated as already sampled; only strictly interior
+      nominal grid positions ``start_ts_ms + k * period_ms`` (``k >= 1``)
+      that still lie before ``end_ts_ms`` count as missing.
+    * Exact multiple: a span of exactly ``k`` periods misses ``k - 1``
+      points, because the right endpoint lands on the grid and is sampled.
+    * Non-multiple: ``floor(span / period_ms)`` points are missing; the
+      leftover sub-period remainder is absorbed by the right endpoint and
+      never counts as an extra missing point.
+
+    Both cases are the single integer identity ``ceil(span / period) - 1 ==
+    (span - 1) // period`` for ``span > 0``; a non-positive span has no
+    interior grid positions and yields 0. Pure integer arithmetic.
+    """
+    span = end_ts_ms - start_ts_ms
+    if span <= 0:
+        return 0
+    return (span - 1) // period_ms
+
+
+def missing_grid_timestamps(start_ts_ms: int, end_ts_ms: int, period_ms: int) -> Iterator[int]:
+    """Yield the interior grid positions counted by :func:`missing_points_between`.
+
+    Same endpoint semantics: positions are ``start_ts_ms + k * period_ms``
+    for ``k >= 1`` while strictly smaller than ``end_ts_ms``. The number of
+    yielded timestamps always equals ``missing_points_between(...)``.
+    """
+    cursor = start_ts_ms + period_ms
+    while cursor < end_ts_ms:
+        yield cursor
+        cursor += period_ms
 
 
 def histogram(pairs: list[Any], buckets: tuple[int, ...]) -> list[dict[str, int | None]]:
@@ -108,8 +148,15 @@ def build_source_stats(
     jitter_pairs = sum(1 for pair in pairs if pair.kind == "jitter")
     nonduplicate_pairs = [pair for pair in pairs if pair.kind != "duplicate"]
     gap_pairs = [pair for pair in pairs if pair.kind == "gap"]
+    # Unified semantics: both endpoints of a gap pair are sampled; count the
+    # interior nominal grid positions. Identical to what fill plans expect
+    # for the same pairs, so plans reconcile with this estimate.
     missing = sum(
-        max(0, (pair.delta_ms + source.period_ms - 1) // source.period_ms - 1)
+        missing_points_between(
+            points[pair.prev_index].ts_ms,
+            points[pair.cur_index].ts_ms,
+            source.period_ms,
+        )
         for pair in gap_pairs
     )
     unique_points = len({point.ts_ms for point in points})

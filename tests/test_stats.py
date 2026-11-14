@@ -4,7 +4,12 @@ from types import SimpleNamespace
 
 from jitterlens.core.classify import classify_timeline
 from jitterlens.core.intervals import build_intervals
-from jitterlens.core.stats import build_source_stats, histogram
+from jitterlens.core.stats import (
+    build_source_stats,
+    histogram,
+    missing_grid_timestamps,
+    missing_points_between,
+)
 from jitterlens.core.timeline import build_timelines
 from jitterlens.sources import ParseIssue, RawPoint
 
@@ -96,3 +101,44 @@ def test_empty_source_fails(default_contract, source_a) -> None:
     assert stats["verdict"] == "fail"
     assert stats["verdict_reasons"] == ["no_records", "no_valid_points"]
     assert stats["timing"]["mean_delta_ms"] is None
+
+
+def test_missing_points_exact_period_multiple() -> None:
+    # Span of exactly 3 periods: both endpoints are sampled, so only the 2
+    # strictly interior grid positions are missing.
+    assert missing_points_between(0, 3000, 1000) == 2
+    assert list(missing_grid_timestamps(0, 3000, 1000)) == [1000, 2000]
+
+
+def test_missing_points_non_multiple_span() -> None:
+    # Non-multiple span rounds down to whole periods.
+    assert missing_points_between(0, 3500, 1000) == 3
+    assert list(missing_grid_timestamps(0, 3500, 1000)) == [1000, 2000, 3000]
+
+
+def test_missing_points_remainder_absorbed_by_endpoint() -> None:
+    # The sub-period remainder is absorbed by the right endpoint: 1ms short
+    # of the next grid slot does not add a point, 1ms past it does not either.
+    assert missing_points_between(0, 3999, 1000) == 3
+    assert missing_points_between(0, 4001, 1000) == 4
+    assert missing_points_between(0, 4000, 1000) == 3
+    assert missing_points_between(1000, 1000, 1000) == 0
+    assert missing_points_between(2000, 1000, 1000) == 0
+
+
+def test_missing_grid_timestamps_match_count() -> None:
+    for span in range(0, 7001, 250):
+        assert len(list(missing_grid_timestamps(0, span, 1000))) == missing_points_between(
+            0, span, 1000
+        )
+
+
+def test_missing_estimate_exact_multiple_and_remainder(default_contract, source_a) -> None:
+    source = make_source(source_a, max_gap_points=2)
+    exact = _stats([0, 3000], source, default_contract)
+    assert exact["counts"]["gap"] == 2  # both endpoints flagged
+    assert exact["missing_estimate"] == 2
+    short = _stats([0, 3999], source, default_contract)
+    assert short["missing_estimate"] == 3
+    long = _stats([0, 4001], source, default_contract)
+    assert long["missing_estimate"] == 4
