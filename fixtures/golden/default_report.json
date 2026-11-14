@@ -1,0 +1,465 @@
+{
+  "contract": {
+    "name": "sensors_default.yaml",
+    "sha256": "f3c629edb03d02f0a63110cb38d7bfdac3638b8e66034e701af517d90cac49b2",
+    "version": 1
+  },
+  "inputs": {
+    "files": [
+      {
+        "format": "csv",
+        "path": "mock-sensor-a.csv",
+        "sha256": "daa1a728b56308ea24c19e8e85376c56682cb0e3007c8c47c75d236a47857c1e",
+        "size": 7480
+      },
+      {
+        "format": "jsonl",
+        "path": "mock-sensor-b.jsonl",
+        "sha256": "ced4e482805803b1073500b993a043156a12d3941a375435c4f927800d71c865",
+        "size": 9274
+      },
+      {
+        "format": "csv",
+        "path": "mock-sensor-c.csv",
+        "sha256": "4910c82ce865f93492787029c78d072b32944e3aba6250ca3f4fe916ed3cec45",
+        "size": 6250
+      }
+    ],
+    "manifest_sha256": "57cf54d844d7240cd513938eb8c82273f0b7baa09a46e76379a639de9449692f"
+  },
+  "intervals": [
+    {
+      "end_lineno": 64,
+      "end_origin": "mock-sensor-a.csv",
+      "end_ts": 1735689661002,
+      "id": "mock-sensor-a#0001",
+      "kinds": [
+        "jitter"
+      ],
+      "point_count": 3,
+      "source": "mock-sensor-a",
+      "start_lineno": 62,
+      "start_origin": "mock-sensor-a.csv",
+      "start_ts": 1735689658993
+    },
+    {
+      "end_lineno": 124,
+      "end_origin": "mock-sensor-a.csv",
+      "end_ts": 1735689725001,
+      "id": "mock-sensor-a#0002",
+      "kinds": [
+        "gap"
+      ],
+      "point_count": 2,
+      "source": "mock-sensor-a",
+      "start_lineno": 123,
+      "start_origin": "mock-sensor-a.csv",
+      "start_ts": 1735689719004
+    },
+    {
+      "end_lineno": 41,
+      "end_origin": "mock-sensor-b.jsonl",
+      "end_ts": 1735690121999,
+      "id": "mock-sensor-b#0001",
+      "kinds": [
+        "gap"
+      ],
+      "point_count": 2,
+      "source": "mock-sensor-b",
+      "start_lineno": 40,
+      "start_origin": "mock-sensor-b.jsonl",
+      "start_ts": 1735690119501
+    },
+    {
+      "end_lineno": 72,
+      "end_origin": "mock-sensor-b.jsonl",
+      "end_ts": 1735690137001,
+      "id": "mock-sensor-b#0002",
+      "kinds": [
+        "duplicate"
+      ],
+      "point_count": 1,
+      "source": "mock-sensor-b",
+      "start_lineno": 72,
+      "start_origin": "mock-sensor-b.jsonl",
+      "start_ts": 1735690137001
+    },
+    {
+      "end_lineno": 123,
+      "end_origin": "mock-sensor-b.jsonl",
+      "end_ts": 1735690163497,
+      "id": "mock-sensor-b#0003",
+      "kinds": [
+        "gap"
+      ],
+      "point_count": 2,
+      "source": "mock-sensor-b",
+      "start_lineno": 122,
+      "start_origin": "mock-sensor-b.jsonl",
+      "start_ts": 1735690161502
+    },
+    {
+      "end_lineno": 130,
+      "end_origin": "mock-sensor-c.csv",
+      "end_ts": 1735689858392,
+      "id": "mock-sensor-c#0001",
+      "kinds": [
+        "clock_drift"
+      ],
+      "point_count": 129,
+      "source": "mock-sensor-c",
+      "start_lineno": 2,
+      "start_origin": "mock-sensor-c.csv",
+      "start_ts": 1735689600000
+    },
+    {
+      "end_lineno": 161,
+      "end_origin": "mock-sensor-c.csv",
+      "end_ts": 1735689921714,
+      "id": "mock-sensor-c#0002",
+      "kinds": [
+        "jitter"
+      ],
+      "point_count": 24,
+      "source": "mock-sensor-c",
+      "start_lineno": 138,
+      "start_origin": "mock-sensor-c.csv",
+      "start_ts": 1735689874705
+    }
+  ],
+  "parse_errors": [
+    {
+      "code": "E_READ_003",
+      "lineno": 52,
+      "message": "invalid numeric timestamp: bad-ts",
+      "origin": "mock-sensor-a.csv",
+      "source": "mock-sensor-a"
+    },
+    {
+      "code": "E_READ_002",
+      "lineno": 93,
+      "message": "empty line",
+      "origin": "mock-sensor-a.csv",
+      "source": "mock-sensor-a"
+    },
+    {
+      "code": "E_READ_002",
+      "lineno": 102,
+      "message": "invalid JSON: Expecting value",
+      "origin": "mock-sensor-b.jsonl",
+      "source": "mock-sensor-b"
+    }
+  ],
+  "schema_version": 1,
+  "sources": [
+    {
+      "contract": {
+        "duplicate_policy": "mark",
+        "jitter_abs_ms": 25,
+        "jitter_rel": 0.02,
+        "max_gap_points": 3,
+        "max_gap_ratio": 0.05,
+        "monotonic": true,
+        "period_ms": 1000
+      },
+      "counts": {
+        "abnormal_points": 5,
+        "clock_drift": 0,
+        "duplicate": 0,
+        "gap": 2,
+        "intervals": 2,
+        "jitter": 3,
+        "monotonic": 0,
+        "out_of_order": 0,
+        "parse_errors": 2,
+        "records": 242,
+        "unique_points": 240,
+        "valid_points": 240
+      },
+      "diagnostics": [],
+      "gap_ratio": 0.020408,
+      "histogram": [
+        {
+          "count": 222,
+          "le_ms": 5
+        },
+        {
+          "count": 14,
+          "le_ms": 25
+        },
+        {
+          "count": 0,
+          "le_ms": 50
+        },
+        {
+          "count": 0,
+          "le_ms": 100
+        },
+        {
+          "count": 0,
+          "le_ms": 250
+        },
+        {
+          "count": 2,
+          "le_ms": 1000
+        },
+        {
+          "count": 1,
+          "le_ms": null
+        }
+      ],
+      "jitter_ratio": 0.008368,
+      "max_consecutive_abnormal": 3,
+      "missing_estimate": 5,
+      "name": "mock-sensor-a",
+      "parse_error_ratio": 0.008264,
+      "parse_errors": [
+        {
+          "code": "E_READ_003",
+          "lineno": 52,
+          "message": "invalid numeric timestamp: bad-ts",
+          "origin": "mock-sensor-a.csv"
+        },
+        {
+          "code": "E_READ_002",
+          "lineno": 93,
+          "message": "empty line",
+          "origin": "mock-sensor-a.csv"
+        }
+      ],
+      "rule_hits": {
+        "clock_drift": 0,
+        "duplicate": 0,
+        "gap": 2,
+        "jitter": 3,
+        "monotonic": 0,
+        "on_time": 236,
+        "out_of_order": 0,
+        "parse_error": 2
+      },
+      "timing": {
+        "delta_count": 239,
+        "max_delta_ms": 5997,
+        "mean_delta_ms": 1020.983,
+        "median_delta_ms": 1002,
+        "min_delta_ms": 202
+      },
+      "unknown_field_count": 240,
+      "verdict": "warn",
+      "verdict_reasons": [
+        "abnormal_points",
+        "parse_errors"
+      ]
+    },
+    {
+      "contract": {
+        "duplicate_policy": "mark",
+        "jitter_abs_ms": 25,
+        "jitter_rel": 0.02,
+        "max_gap_points": 3,
+        "max_gap_ratio": 0.05,
+        "monotonic": true,
+        "period_ms": 500
+      },
+      "counts": {
+        "abnormal_points": 5,
+        "clock_drift": 0,
+        "duplicate": 1,
+        "gap": 4,
+        "intervals": 3,
+        "jitter": 0,
+        "monotonic": 0,
+        "out_of_order": 0,
+        "parse_errors": 1,
+        "records": 182,
+        "unique_points": 180,
+        "valid_points": 181
+      },
+      "diagnostics": [
+        {
+          "kind": "duplicate",
+          "lineno": 72,
+          "origin": "mock-sensor-b.jsonl",
+          "ts_ms": 1735690137001
+        }
+      ],
+      "gap_ratio": 0.037433,
+      "histogram": [
+        {
+          "count": 177,
+          "le_ms": 5
+        },
+        {
+          "count": 0,
+          "le_ms": 25
+        },
+        {
+          "count": 0,
+          "le_ms": 50
+        },
+        {
+          "count": 0,
+          "le_ms": 100
+        },
+        {
+          "count": 0,
+          "le_ms": 250
+        },
+        {
+          "count": 0,
+          "le_ms": 1000
+        },
+        {
+          "count": 2,
+          "le_ms": null
+        }
+      ],
+      "jitter_ratio": 0.0,
+      "max_consecutive_abnormal": 2,
+      "missing_estimate": 7,
+      "name": "mock-sensor-b",
+      "parse_error_ratio": 0.005495,
+      "parse_errors": [
+        {
+          "code": "E_READ_002",
+          "lineno": 102,
+          "message": "invalid JSON: Expecting value",
+          "origin": "mock-sensor-b.jsonl"
+        }
+      ],
+      "rule_hits": {
+        "clock_drift": 0,
+        "duplicate": 1,
+        "gap": 4,
+        "jitter": 0,
+        "monotonic": 0,
+        "on_time": 177,
+        "out_of_order": 0,
+        "parse_error": 1
+      },
+      "timing": {
+        "delta_count": 180,
+        "max_delta_ms": 2498,
+        "mean_delta_ms": 516.694,
+        "median_delta_ms": 501,
+        "min_delta_ms": 0
+      },
+      "unknown_field_count": 18,
+      "verdict": "warn",
+      "verdict_reasons": [
+        "abnormal_points",
+        "parse_errors",
+        "duplicates"
+      ]
+    },
+    {
+      "contract": {
+        "duplicate_policy": "mark",
+        "jitter_abs_ms": 25,
+        "jitter_rel": 0.02,
+        "max_gap_points": 3,
+        "max_gap_ratio": 0.05,
+        "monotonic": true,
+        "period_ms": 2000
+      },
+      "counts": {
+        "abnormal_points": 153,
+        "clock_drift": 129,
+        "duplicate": 0,
+        "gap": 0,
+        "intervals": 2,
+        "jitter": 24,
+        "monotonic": 0,
+        "out_of_order": 0,
+        "parse_errors": 0,
+        "records": 160,
+        "unique_points": 160,
+        "valid_points": 160
+      },
+      "diagnostics": [],
+      "gap_ratio": 0.0,
+      "histogram": [
+        {
+          "count": 20,
+          "le_ms": 5
+        },
+        {
+          "count": 67,
+          "le_ms": 25
+        },
+        {
+          "count": 72,
+          "le_ms": 50
+        },
+        {
+          "count": 0,
+          "le_ms": 100
+        },
+        {
+          "count": 0,
+          "le_ms": 250
+        },
+        {
+          "count": 0,
+          "le_ms": 1000
+        },
+        {
+          "count": 0,
+          "le_ms": null
+        }
+      ],
+      "jitter_ratio": 0.144654,
+      "max_consecutive_abnormal": 129,
+      "missing_estimate": 0,
+      "name": "mock-sensor-c",
+      "parse_error_ratio": 0.0,
+      "parse_errors": [],
+      "rule_hits": {
+        "clock_drift": 129,
+        "duplicate": 0,
+        "gap": 0,
+        "jitter": 24,
+        "monotonic": 0,
+        "on_time": 136,
+        "out_of_order": 0,
+        "parse_error": 0
+      },
+      "timing": {
+        "delta_count": 159,
+        "max_delta_ms": 2047,
+        "mean_delta_ms": 2023.358,
+        "median_delta_ms": 2023,
+        "min_delta_ms": 2000
+      },
+      "unknown_field_count": 0,
+      "verdict": "warn",
+      "verdict_reasons": [
+        "abnormal_points",
+        "clock_drift"
+      ]
+    }
+  ],
+  "summary": {
+    "abnormal_intervals": 7,
+    "parse_errors": 3,
+    "plans": {
+      "downsample": 1,
+      "fill": 3,
+      "truncated": 2
+    },
+    "rule_hits": {
+      "clock_drift": 129,
+      "duplicate": 1,
+      "gap": 6,
+      "jitter": 27,
+      "monotonic": 0,
+      "on_time": 549,
+      "out_of_order": 0,
+      "parse_error": 3
+    },
+    "sources": 3,
+    "unknown_fields": 258,
+    "valid_points": 581,
+    "verdict": "warn"
+  }
+}
