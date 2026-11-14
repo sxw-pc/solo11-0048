@@ -4,11 +4,41 @@ from types import SimpleNamespace
 
 from jitterlens.core.classify import classify_timeline
 from jitterlens.core.intervals import build_intervals
-from jitterlens.core.stats import build_source_stats, histogram
+from jitterlens.core.stats import (
+    FAIL_RULES,
+    RULES,
+    WARN_RULES,
+    build_source_stats,
+    evaluate_verdict,
+    histogram,
+    verdict_metrics,
+)
 from jitterlens.core.timeline import build_timelines
 from jitterlens.sources import ParseIssue, RawPoint
 
 from tests.conftest import make_source, single_contract
+
+
+def _metrics(**overrides):
+    counts = {
+        "records": 10,
+        "valid_points": 10,
+        "abnormal_points": 0,
+        "parse_errors": 0,
+        "monotonic": 0,
+        "duplicate": 0,
+        "clock_drift": 0,
+    }
+    derived = ("gap_ratio", "jitter_ratio", "parse_error_ratio")
+    counts.update(
+        {key: value for key, value in overrides.items() if key not in derived}
+    )
+    return verdict_metrics(
+        counts,
+        overrides.get("gap_ratio", 0.0),
+        overrides.get("jitter_ratio", 0.0),
+        overrides.get("parse_error_ratio", 0.0),
+    )
 
 
 def _stats(times, source, default_contract, issues=(), unknown=0):
@@ -96,3 +126,94 @@ def test_empty_source_fails(default_contract, source_a) -> None:
     assert stats["verdict"] == "fail"
     assert stats["verdict_reasons"] == ["no_records", "no_valid_points"]
     assert stats["timing"]["mean_delta_ms"] is None
+
+
+def test_rule_ids_and_reason_order_are_stable() -> None:
+    assert [rule.reason for rule in FAIL_RULES] == [
+        "no_records",
+        "no_valid_points",
+        "monotonic_violation",
+        "gap_ratio_exceeded",
+        "parse_error_ratio_exceeded",
+        "jitter_ratio_exceeded",
+    ]
+    assert [rule.reason for rule in WARN_RULES] == [
+        "abnormal_points",
+        "parse_errors",
+        "duplicates",
+        "clock_drift",
+    ]
+    assert RULES == FAIL_RULES + WARN_RULES
+
+
+def test_each_rule_declares_metrics_and_operator() -> None:
+    by_reason = {rule.reason: rule for rule in RULES}
+    assert by_reason["no_records"].metrics == ("records",)
+    assert by_reason["no_valid_points"].metrics == ("valid_points",)
+    assert by_reason["monotonic_violation"].metrics == ("monotonic",)
+    assert by_reason["gap_ratio_exceeded"].metrics == ("gap_ratio",)
+    assert by_reason["parse_error_ratio_exceeded"].metrics == (
+        "parse_errors",
+        "parse_error_ratio",
+    )
+    assert by_reason["jitter_ratio_exceeded"].metrics == ("jitter_ratio",)
+    assert by_reason["abnormal_points"].metrics == ("abnormal_points",)
+    assert by_reason["parse_errors"].metrics == ("parse_errors",)
+    assert by_reason["duplicates"].metrics == ("duplicate",)
+    assert by_reason["clock_drift"].metrics == ("clock_drift",)
+    for rule in RULES:
+        assert all(check.op in ("eq", "gt") for check in rule.comparisons)
+        assert rule.severity in ("fail", "warn")
+
+
+def test_fail_precedes_warn_regardless_of_table_order(default_contract, source_a) -> None:
+    metrics = _metrics(abnormal_points=1, monotonic=1)
+    assert evaluate_verdict(metrics, source_a) == ("fail", ["monotonic_violation"])
+
+
+def test_verdict_is_ok_with_no_rule_hits(default_contract, source_a) -> None:
+    assert evaluate_verdict(_metrics(), source_a) == ("ok", [])
+
+
+def test_gap_ratio_boundary_is_strict(default_contract, source_a) -> None:
+    at_limit = _metrics(gap_ratio=source_a.max_gap_ratio)
+    assert evaluate_verdict(at_limit, source_a) == ("ok", [])
+    above = _metrics(gap_ratio=source_a.max_gap_ratio + 0.000001)
+    assert evaluate_verdict(above, source_a) == ("fail", ["gap_ratio_exceeded"])
+
+
+def test_jitter_ratio_boundary_is_strict(default_contract, source_a) -> None:
+    at_limit = _metrics(jitter_ratio=source_a.fail_jitter_ratio)
+    assert evaluate_verdict(at_limit, source_a) == ("ok", [])
+    above = _metrics(jitter_ratio=source_a.fail_jitter_ratio + 0.000001)
+    assert evaluate_verdict(above, source_a) == ("fail", ["jitter_ratio_exceeded"])
+
+
+def test_parse_error_rule_requires_both_conditions(default_contract, source_a) -> None:
+    # A high parse ratio with zero parse errors cannot trigger the fail rule.
+    assert evaluate_verdict(
+        _metrics(parse_errors=0, parse_error_ratio=0.9), source_a
+    ) == ("ok", [])
+    # Parse errors alone (ratio at the limit) remain a warn.
+    assert evaluate_verdict(
+        _metrics(parse_errors=2, parse_error_ratio=source_a.max_parse_error_ratio), source_a
+    ) == ("warn", ["parse_errors"])
+
+
+def test_fail_reasons_keep_table_order(default_contract, source_a) -> None:
+    metrics = _metrics(records=0, valid_points=0, monotonic=1)
+    assert evaluate_verdict(metrics, source_a) == (
+        "fail",
+        ["no_records", "no_valid_points", "monotonic_violation"],
+    )
+
+
+def test_warn_reasons_keep_table_order(default_contract, source_a) -> None:
+    metrics = _metrics(
+        abnormal_points=1, parse_errors=1, duplicate=1, clock_drift=1
+    )
+    assert evaluate_verdict(metrics, source_a) == (
+        "warn",
+        ["abnormal_points", "parse_errors", "duplicates", "clock_drift"],
+    )
+

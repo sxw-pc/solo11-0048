@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import operator
+from dataclasses import dataclass
+from enum import Enum
 from statistics import median
-from typing import Any
+from typing import Any, Callable, Mapping
 
 from ..config import SourceContract
 from ..sources import ParseIssue
@@ -12,6 +15,125 @@ from .intervals import max_consecutive_abnormal
 from .timeline import SourceTimeline
 
 VERDICT_ORDER = {"ok": 0, "warn": 1, "fail": 2}
+FAIL = "fail"
+WARN = "warn"
+
+
+class Op(str, Enum):
+    """Comparison operators a rule may declare."""
+
+    EQ = "eq"
+    GT = "gt"
+
+
+_OPERATORS: dict[Op, Callable[[int | float, int | float], bool]] = {
+    Op.EQ: operator.eq,
+    Op.GT: operator.gt,
+}
+
+
+@dataclass(frozen=True)
+class Limit:
+    """A threshold resolved from the source contract when a rule is evaluated."""
+
+    field: str
+
+
+@dataclass(frozen=True)
+class Comparison:
+    """One declarative check over a metric fed into rule evaluation."""
+
+    metric: str
+    op: Op
+    threshold: int | float | Limit
+
+    def holds(self, metrics: Mapping[str, int | float], source: SourceContract) -> bool:
+        threshold = self.threshold
+        if isinstance(threshold, Limit):
+            threshold = getattr(source, threshold.field)
+        return _OPERATORS[self.op](metrics[self.metric], threshold)
+
+
+@dataclass(frozen=True)
+class Rule:
+    """A reason code produced when all of its comparisons hold."""
+
+    reason: str
+    severity: str
+    comparisons: tuple[Comparison, ...]
+
+    def matches(self, metrics: Mapping[str, int | float], source: SourceContract) -> bool:
+        return all(check.holds(metrics, source) for check in self.comparisons)
+
+    @property
+    def metrics(self) -> tuple[str, ...]:
+        return tuple(check.metric for check in self.comparisons)
+
+
+FAIL_RULES: tuple[Rule, ...] = (
+    Rule("no_records", FAIL, (Comparison("records", Op.EQ, 0),)),
+    Rule("no_valid_points", FAIL, (Comparison("valid_points", Op.EQ, 0),)),
+    Rule("monotonic_violation", FAIL, (Comparison("monotonic", Op.GT, 0),)),
+    Rule(
+        "gap_ratio_exceeded",
+        FAIL,
+        (Comparison("gap_ratio", Op.GT, Limit("max_gap_ratio")),),
+    ),
+    Rule(
+        "parse_error_ratio_exceeded",
+        FAIL,
+        (
+            Comparison("parse_errors", Op.GT, 0),
+            Comparison("parse_error_ratio", Op.GT, Limit("max_parse_error_ratio")),
+        ),
+    ),
+    Rule(
+        "jitter_ratio_exceeded",
+        FAIL,
+        (Comparison("jitter_ratio", Op.GT, Limit("fail_jitter_ratio")),),
+    ),
+)
+
+# Warn rules keep their historical order; reasons are always reported in table order.
+WARN_RULES: tuple[Rule, ...] = (
+    Rule("abnormal_points", WARN, (Comparison("abnormal_points", Op.GT, 0),)),
+    Rule("parse_errors", WARN, (Comparison("parse_errors", Op.GT, 0),)),
+    Rule("duplicates", WARN, (Comparison("duplicate", Op.GT, 0),)),
+    Rule("clock_drift", WARN, (Comparison("clock_drift", Op.GT, 0),)),
+)
+
+RULES = FAIL_RULES + WARN_RULES
+
+
+def verdict_metrics(
+    counts: Mapping[str, int],
+    gap_ratio: float,
+    jitter_ratio: float,
+    parse_ratio: float,
+) -> dict[str, int | float]:
+    """Flatten counts fields and derived ratios into one rule-evaluation namespace."""
+    metrics: dict[str, int | float] = dict(counts)
+    metrics["gap_ratio"] = gap_ratio
+    metrics["jitter_ratio"] = jitter_ratio
+    metrics["parse_error_ratio"] = parse_ratio
+    return metrics
+
+
+def evaluate_verdict(
+    metrics: Mapping[str, int | float],
+    source: SourceContract,
+    rules: tuple[Rule, ...] = RULES,
+) -> tuple[str, list[str]]:
+    """Grade a source: fail rules take precedence over warn rules in table order."""
+    for severity in (FAIL, WARN):
+        reasons = [
+            rule.reason
+            for rule in rules
+            if rule.severity == severity and rule.matches(metrics, source)
+        ]
+        if reasons:
+            return severity, reasons
+    return "ok", []
 
 
 def _number(value: float) -> int | float:
@@ -45,42 +167,6 @@ def histogram(pairs: list[Any], buckets: tuple[int, ...]) -> list[dict[str, int 
         rows.append({"le_ms": upper, "count": counts[index]})
     rows.append({"le_ms": None, "count": counts[-1]})
     return rows
-
-
-def _verdict(
-    counts: dict[str, int],
-    gap_ratio: float,
-    jitter_ratio: float,
-    parse_ratio: float,
-    source: SourceContract,
-) -> tuple[str, list[str]]:
-    fail_reasons: list[str] = []
-    warn_reasons: list[str] = []
-    if counts["records"] == 0:
-        fail_reasons.append("no_records")
-    if counts["valid_points"] == 0:
-        fail_reasons.append("no_valid_points")
-    if counts["monotonic"] > 0:
-        fail_reasons.append("monotonic_violation")
-    if gap_ratio > source.max_gap_ratio:
-        fail_reasons.append("gap_ratio_exceeded")
-    if counts["parse_errors"] > 0 and parse_ratio > source.max_parse_error_ratio:
-        fail_reasons.append("parse_error_ratio_exceeded")
-    if jitter_ratio > source.fail_jitter_ratio:
-        fail_reasons.append("jitter_ratio_exceeded")
-    if fail_reasons:
-        return "fail", fail_reasons
-    if counts["abnormal_points"] > 0:
-        warn_reasons.append("abnormal_points")
-    if counts["parse_errors"] > 0:
-        warn_reasons.append("parse_errors")
-    if counts["duplicate"] > 0:
-        warn_reasons.append("duplicates")
-    if counts["clock_drift"] > 0:
-        warn_reasons.append("clock_drift")
-    if warn_reasons:
-        return "warn", warn_reasons
-    return "ok", []
 
 
 def build_source_stats(
@@ -132,7 +218,9 @@ def build_source_stats(
         "gap": kind_counts["gap"],
         "clock_drift": kind_counts["clock_drift"],
     }
-    verdict, reasons = _verdict(counts, gap_ratio, jitter_ratio, parse_ratio, source)
+    verdict, reasons = evaluate_verdict(
+        verdict_metrics(counts, gap_ratio, jitter_ratio, parse_ratio), source
+    )
     deltas = [pair.delta_ms for pair in pairs]
     timing: dict[str, int | float | None] = {
         "delta_count": len(deltas),
