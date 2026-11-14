@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import fnmatch
 import hashlib
 from dataclasses import dataclass
 from fractions import Fraction
@@ -11,6 +10,7 @@ from typing import Any
 
 from . import yamlmini
 from .errors import JitterLensError
+from .routing import RoutingDecision, decide_source, match_candidates
 
 DEFAULT_GENERATED_AT = "1970-01-01T00:00:00Z"
 
@@ -67,28 +67,18 @@ class Contract:
                 return source
         raise JitterLensError("E_CTR_002", f"unknown source in contract: {name}")
 
+    def decide(self, filename: str, label: str | None) -> RoutingDecision:
+        """Attribute one record of `filename` with candidates and rationale.
+
+        Uses the same unified decision as the input readers
+        (`jitterlens.routing.decide_source`), so both entry points always
+        agree on the final source for the same record.
+        """
+        return decide_source(match_candidates(self.sources, filename), label)
+
     def route(self, filename: str, label: str | None) -> SourceContract | None:
-        candidates = [
-            source
-            for source in self.sources
-            if fnmatch.fnmatchcase(filename, source.match_filename)
-        ]
-        if not candidates:
-            return None
-        if label:
-            exact = [source for source in candidates if source.match_value == label]
-            if exact:
-                return exact[0]
-            named = [source for source in candidates if source.name == label]
-            if named:
-                return named[0]
-            generic = [source for source in candidates if source.match_value is None]
-            if len(generic) == 1:
-                return generic[0]
-            return None
-        if len(candidates) == 1:
-            return candidates[0]
-        return None
+        """Final source for one record, or None when attribution is undecidable."""
+        return self.decide(filename, label).source
 
 _DEFAULTS: dict[str, Any] = {
     "period_ms": 1000,

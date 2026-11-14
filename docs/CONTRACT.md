@@ -85,10 +85,22 @@ sources:
 
 ### 路由
 
-1. 先按 `match.filename` 找出候选 source。
+归属判定由 `jitterlens/routing.py` 的 `decide_source` 统一实现；`Contract.route` /
+`Contract.decide` 与 CSV/JSONL 读取器共用同一函数，同一条记录在任一入口的归属必然一致。
+
+1. 先按 `match.filename` 找出候选 source（相对路径或 basename 任一命中即算）。
 2. 从记录中读取 source 标签（CSV 的 `source_column`、JSONL 的 `source_field`）。
-3. 优先匹配 `match.value == label`，其次匹配 `name == label`，再次接受唯一一个无 `match.value` 的候选。
-4. 无标签时只有唯一候选才能路由；有多个候选且缺 source 标签时产生 `E_READ_004`。
+3. 按以下优先级给出唯一结论（同档并列时按契约声明顺序取先者）：
+   1. `match.value == label`，理由 `exact_value`；
+   2. `name == label`，理由 `name_match`；
+   3. 唯一一个 `match.value` 为 null 的候选兜底，理由 `unique_generic`；
+   4. 无标签时只有唯一候选才能路由，理由 `unique_candidate`。
+4. 每条记录都携带判定结果：最终来源、判定时的候选清单、以及上述理由之一
+   （读取器把它保存在记录点的 `routing` 字段上）。
+5. 无法唯一归属的行不静默丢弃、也不当作唯一命中，而是产生 `E_READ_005` 写入报告的
+   `parse_errors` 与台账：标签无精确/同名命中且通配兜底不存在或不唯一（`unresolved_label`），
+   或无标签且候选不止一个（`missing_label`）。issue 的 `source` 字段记为候选清单中
+   按契约声明顺序的第一个源，仅用于统计归集，不代表归属结论。
 
 ### CSV
 
@@ -227,7 +239,8 @@ sources:
 | `E_READ_001` | 输入目录不存在、无支持文件或文件不可读 |
 | `E_READ_002` | 空行、坏行、字段数不匹配、非法 JSON |
 | `E_READ_003` | 缺失或非法时间戳 |
-| `E_READ_004` | 无法路由、表头问题、缺失时间戳列/字段 |
+| `E_READ_004` | 文件级路由失败、表头问题、缺失时间戳列/字段 |
+| `E_READ_005` | 行级归属无法唯一确定（标签无命中且兜底不唯一，或无标签且候选多个） |
 | `E_LEDGER_001` | 台账不存在、无法打开或查询失败 |
 | `E_LEDGER_002` | 查询了未知台账表 |
 

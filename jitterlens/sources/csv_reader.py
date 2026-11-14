@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
+from typing import Sequence
 
 from ..config import SourceContract
-from . import ParseIssue, RawPoint, _header_columns, parse_timestamp, select_source
+from ..routing import decide_source
+from . import ParseIssue, RawPoint, _header_columns, attribution_issue, parse_timestamp
 
 
 def _issue(source: str, origin: str, lineno: int, code: str, message: str) -> ParseIssue:
@@ -16,7 +18,7 @@ def _issue(source: str, origin: str, lineno: int, code: str, message: str) -> Pa
 def read_csv(
     path: Path,
     origin: str,
-    candidates: list[SourceContract],
+    candidates: Sequence[SourceContract],
 ) -> tuple[list[RawPoint], list[ParseIssue]]:
     points: list[RawPoint] = []
     issues: list[ParseIssue] = []
@@ -78,10 +80,10 @@ def read_csv(
                         index = header.index(source_column)
                         if index < len(row):
                             label = row[index].strip() or None
-                    chosen = select_source(candidates, label)
+                    decision = decide_source(candidates, label)
                     issues.append(
                         _issue(
-                            (chosen.name if chosen else default_source),
+                            decision.source_name or default_source,
                             origin,
                             lineno,
                             "E_READ_002",
@@ -94,17 +96,10 @@ def read_csv(
                 label = None
                 if source_column is not None:
                     label = record.get(source_column, "").strip() or None
-                chosen = select_source(candidates, label)
+                decision = decide_source(candidates, label)
+                chosen = decision.source
                 if chosen is None:
-                    issues.append(
-                        _issue(
-                            default_source,
-                            origin,
-                            lineno,
-                            "E_READ_004",
-                            f"cannot route source label {label!r} for file",
-                        )
-                    )
+                    issues.append(attribution_issue(default_source, origin, lineno, label, decision))
                     continue
                 ts_column = chosen.timestamp.column
                 if ts_column not in record:
@@ -133,6 +128,7 @@ def read_csv(
                         origin=origin,
                         lineno=lineno,
                         unknown_fields=unknown,
+                        routing=decision,
                     )
                 )
         except csv.Error as exc:

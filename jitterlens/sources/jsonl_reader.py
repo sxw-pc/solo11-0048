@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Sequence
 
 from ..config import SourceContract
-from . import ParseIssue, RawPoint, parse_timestamp, select_source
+from ..routing import decide_source
+from . import ParseIssue, RawPoint, attribution_issue, parse_timestamp
 
 
 def _issue(source: str, origin: str, lineno: int, code: str, message: str) -> ParseIssue:
@@ -16,7 +18,7 @@ def _issue(source: str, origin: str, lineno: int, code: str, message: str) -> Pa
 def read_jsonl(
     path: Path,
     origin: str,
-    candidates: list[SourceContract],
+    candidates: Sequence[SourceContract],
 ) -> tuple[list[RawPoint], list[ParseIssue]]:
     points: list[RawPoint] = []
     issues: list[ParseIssue] = []
@@ -54,17 +56,10 @@ def read_jsonl(
                 if isinstance(value, str) and value.strip():
                     label = value.strip()
                     break
-            chosen = select_source(candidates, label)
+            decision = decide_source(candidates, label)
+            chosen = decision.source
             if chosen is None:
-                issues.append(
-                    _issue(
-                        default_source,
-                        origin,
-                        lineno,
-                        "E_READ_004",
-                        f"cannot route source label {label!r} for file",
-                    )
-                )
+                issues.append(attribution_issue(default_source, origin, lineno, label, decision))
                 continue
             ts_column = chosen.timestamp.column
             if ts_column not in record:
@@ -102,6 +97,7 @@ def read_jsonl(
                     origin=origin,
                     lineno=lineno,
                     unknown_fields=unknown,
+                    routing=decision,
                 )
             )
     return points, issues

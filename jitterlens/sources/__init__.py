@@ -6,9 +6,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
+from typing import Sequence
 
 from ..config import Contract, SourceContract, TimestampSpec
 from ..errors import JitterLensError
+from ..routing import RoutingDecision, decide_source, match_candidates
 
 
 @dataclass(frozen=True)
@@ -18,6 +20,7 @@ class RawPoint:
     origin: str
     lineno: int
     unknown_fields: tuple[tuple[str, str], ...] = ()
+    routing: RoutingDecision | None = None
 
 
 @dataclass(frozen=True)
@@ -41,22 +44,40 @@ _UNIT_MS = {"s": Decimal(1000), "ms": Decimal(1), "us": Decimal("0.001")}
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
-def select_source(candidates: list[SourceContract], label: str | None) -> SourceContract | None:
-    """Route one record to exactly one contract source."""
-    if label:
-        for source in candidates:
-            if source.match_value == label:
-                return source
-        for source in candidates:
-            if source.name == label:
-                return source
-        generic = [source for source in candidates if source.match_value is None]
-        if len(generic) == 1:
-            return generic[0]
-        return None
-    if len(candidates) == 1:
-        return candidates[0]
-    return None
+def select_source(
+    candidates: Sequence[SourceContract], label: str | None
+) -> SourceContract | None:
+    """Route one record to exactly one contract source.
+
+    Compatibility wrapper around `jitterlens.routing.decide_source`; new code
+    should use `decide_source` directly to also get candidates and rationale.
+    """
+    return decide_source(candidates, label).source
+
+
+def attribution_issue(
+    source: str,
+    origin: str,
+    lineno: int,
+    label: str | None,
+    decision: RoutingDecision,
+) -> ParseIssue:
+    """Build the E_READ_005 issue for a record whose attribution is undecidable.
+
+    The record is reported (never silently dropped) with the candidate list and
+    the decision reason so the conflict can be audited from report and ledger.
+    """
+    names = ",".join(decision.candidate_names)
+    return ParseIssue(
+        source=source,
+        origin=origin,
+        lineno=lineno,
+        code="E_READ_005",
+        message=(
+            "cannot attribute record to a unique source: "
+            f"label={label!r} candidates=[{names}] reason={decision.reason}"
+        ),
+    )
 
 
 def parse_timestamp(raw: object, spec: TimestampSpec) -> int:
@@ -92,7 +113,7 @@ def parse_timestamp(raw: object, spec: TimestampSpec) -> int:
     return int(millis.to_integral_value(rounding=ROUND_HALF_UP))
 
 
-def _header_columns(candidates: list[SourceContract]) -> set[str]:
+def _header_columns(candidates: Sequence[SourceContract]) -> set[str]:
     recognized: set[str] = set()
     for source in candidates:
         recognized.add(source.source_column)
@@ -124,11 +145,7 @@ def read_inputs(
 
     for path in paths:
         origin = path.relative_to(root).as_posix()
-        candidates = [
-            source
-            for source in contract.sources
-            if _filename_matches(origin, source.match_filename)
-        ]
+        candidates = match_candidates(contract.sources, origin)
         result.files.append(origin)
         if not candidates:
             result.issues.append(
@@ -146,10 +163,3 @@ def read_inputs(
         result.points.extend(points)
         result.issues.extend(issues)
     return result
-
-
-def _filename_matches(filename: str, pattern: str) -> bool:
-    from fnmatch import fnmatchcase
-
-    name = filename.rsplit("/", 1)[-1]
-    return fnmatchcase(filename, pattern) or fnmatchcase(name, pattern)

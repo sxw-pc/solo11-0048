@@ -124,7 +124,7 @@ def test_unmatched_file_and_unknown_label(tmp_path: Path, source_a) -> None:
     (tmp_path / "unknown.csv").unlink()
     (tmp_path / "mock-sensor-a.csv").write_text("ts,source\n1,other\n", encoding="utf-8")
     result = read_inputs(tmp_path, contract)
-    assert result.issues[0].code == "E_READ_004"
+    assert result.issues[0].code == "E_READ_005"
 
 
 def test_jsonl_bad_shapes_and_missing_ts(tmp_path: Path, default_contract) -> None:
@@ -140,7 +140,7 @@ def test_jsonl_bad_shapes_and_missing_ts(tmp_path: Path, default_contract) -> No
     assert [issue.code for issue in result.issues] == [
         "E_READ_002",
         "E_READ_003",
-        "E_READ_004",
+        "E_READ_005",
     ]
 
 

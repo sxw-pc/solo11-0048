@@ -32,6 +32,7 @@
 | 模块 | 职责 |
 | --- | --- |
 | `config.py` | 契约解析、默认值合并、字段校验、source 匹配 |
+| `routing.py` | 统一的归属判定：候选计算、优先级、判定理由（config 与读取器共用） |
 | `yamlmini.py` | 内置 YAML 子集解析器，支持带行号的稳定错误 |
 | `sources/__init__.py` | 路由、时间戳归一、目录扫描、读取结果聚合 |
 | `sources/csv_reader.py` | CSV 表头、坏行、空行、时间戳与标签处理 |
