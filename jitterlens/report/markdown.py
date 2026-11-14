@@ -74,6 +74,53 @@ def render_markdown(report: dict[str, Any]) -> str:
             rows,
         )
     )
+    lines.extend(["", "## Contract coverage", ""])
+    coverage = report["contract_coverage"]
+    cov_summary = coverage["summary"]
+    uncovered = coverage["uncovered_sources"]
+    lines.extend(
+        [
+            f"- Files: {cov_summary['files']} "
+            f"({cov_summary['routed_files']} routed, {cov_summary['unmatched_files']} unmatched, "
+            f"{cov_summary['unrouted_files']} unrouted)",
+            f"- Sources: {cov_summary['declared_sources']} declared, "
+            f"{cov_summary['covered_sources']} covered, "
+            f"{cov_summary['uncovered_sources']} never routed",
+            "- Never-routed sources: "
+            + (", ".join(f"`{name}`" for name in uncovered) if uncovered else "_none_"),
+            "",
+            "### File routing",
+            "",
+        ]
+    )
+    file_rows = [
+        [
+            entry["origin"],
+            entry["status"],
+            ", ".join(entry["candidates"]) or "—",
+            ", ".join(entry["selected"]) or "—",
+            entry["reason"] or "—",
+        ]
+        for entry in coverage["files"]
+    ]
+    lines.extend(_table(["File", "Status", "Candidates", "Selected", "Reason"], file_rows))
+    lines.extend(["", "### Source coverage", ""])
+    source_rows = [
+        [
+            source["name"],
+            "yes" if source["covered"] else "no",
+            ", ".join(source["matched_files"]) or "—",
+            ", ".join(source["routed_files"]) or "—",
+            ", ".join(source["routing_failures"]) or "—",
+        ]
+        for source in coverage["sources"]
+    ]
+    lines.extend(
+        _table(
+            ["Source", "Covered", "Matched files", "Routed files", "Routing failures"],
+            source_rows,
+        )
+    )
     lines.extend(["", "## Timing detail", ""])
     timing_rows = []
     for source in report["sources"]:

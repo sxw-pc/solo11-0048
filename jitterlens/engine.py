@@ -16,7 +16,7 @@ from .core.timeline import build_timelines
 from .errors import JitterLensError
 from .ledger import record_run
 from .report.html_report import write_html
-from .report.jsonreport import write_json
+from .report.jsonreport import build_contract_coverage, write_json
 from .report.markdown import write_markdown
 from .sources import ParseIssue, ReadResult, read_inputs
 
@@ -184,6 +184,7 @@ def analyze(
             ),
         },
         "sources": source_reports,
+        "contract_coverage": build_contract_coverage(read_result, contract),
         "intervals": all_intervals,
         "parse_errors": parse_errors,
     }

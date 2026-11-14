@@ -29,11 +29,45 @@ class ParseIssue:
     message: str
 
 
+@dataclass(frozen=True)
+class FileRouting:
+    """How one input file resolved against the contract's sources.
+
+    status is one of:
+    - "routed": at least one record was routed to a contract source;
+    - "unmatched": no contract source filename pattern matched the file;
+    - "unrouted": filename patterns matched but record-level routing
+      produced no points (for example an ambiguous file without a source
+      column, or labels no candidate source claims).
+    """
+
+    origin: str
+    candidates: tuple[str, ...]
+    selected: tuple[str, ...]
+    status: str
+    reason: str | None
+
+
+@dataclass(frozen=True)
+class SourceCoverage:
+    """How one contract source was hit across every input file."""
+
+    name: str
+    matched_files: tuple[str, ...]
+    routed_files: tuple[str, ...]
+    routing_failures: tuple[str, ...]
+
+    @property
+    def covered(self) -> bool:
+        return bool(self.routed_files)
+
+
 @dataclass
 class ReadResult:
     points: list[RawPoint] = field(default_factory=list)
     issues: list[ParseIssue] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
+    routing: list[FileRouting] = field(default_factory=list)
 
 
 SUPPORTED_SUFFIXES = {".csv", ".jsonl"}
@@ -104,6 +138,48 @@ def _reader_issue(source: str, origin: str, lineno: int, code: str, message: str
     return ParseIssue(source=source, origin=origin, lineno=lineno, code=code, message=message)
 
 
+def _file_routing(
+    origin: str,
+    candidates: tuple[str, ...],
+    points: list[RawPoint],
+    issues: list[ParseIssue],
+) -> FileRouting:
+    """Classify one read file into the routing genealogy."""
+    selected = tuple(dict.fromkeys(point.source for point in points))
+    if selected:
+        return FileRouting(origin, candidates, selected, "routed", None)
+    reason = next(
+        (issue.message for issue in issues if issue.code == "E_READ_004"),
+        issues[0].message if issues else "no records in file",
+    )
+    return FileRouting(origin, candidates, (), "unrouted", reason)
+
+
+def source_coverage(routing: list[FileRouting], contract: Contract) -> list[SourceCoverage]:
+    """Fold the per-file routing genealogy into per-source coverage.
+
+    A source is covered once any file routes at least one point to it; an
+    unrouted file is attributed to every filename candidate exactly once.
+    """
+    coverage: list[SourceCoverage] = []
+    for source in contract.sources:
+        matched: list[str] = []
+        routed: list[str] = []
+        failures: list[str] = []
+        for entry in routing:
+            if source.name not in entry.candidates:
+                continue
+            matched.append(entry.origin)
+            if source.name in entry.selected:
+                routed.append(entry.origin)
+            elif entry.status == "unrouted":
+                failures.append(entry.origin)
+        coverage.append(
+            SourceCoverage(source.name, tuple(matched), tuple(routed), tuple(failures))
+        )
+    return coverage
+
+
 def read_inputs(
     input_dir: str | Path,
     contract: Contract,
@@ -129,10 +205,14 @@ def read_inputs(
             for source in contract.sources
             if _filename_matches(origin, source.match_filename)
         ]
+        candidate_names = tuple(source.name for source in candidates)
         result.files.append(origin)
         if not candidates:
             result.issues.append(
                 _reader_issue("<unmatched>", origin, 0, "E_READ_004", "no contract source matches file")
+            )
+            result.routing.append(
+                FileRouting(origin, (), (), "unmatched", "no contract source matches file")
             )
             continue
         reader = read_csv if path.suffix.lower() == ".csv" else read_jsonl
@@ -142,9 +222,13 @@ def read_inputs(
             result.issues.append(
                 _reader_issue(candidates[0].name, origin, 0, "E_READ_001", f"cannot read file: {exc}")
             )
+            result.routing.append(
+                FileRouting(origin, candidate_names, (), "unrouted", f"cannot read file: {exc}")
+            )
             continue
         result.points.extend(points)
         result.issues.extend(issues)
+        result.routing.append(_file_routing(origin, candidate_names, points, issues))
     return result
 
 

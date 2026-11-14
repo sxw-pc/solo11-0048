@@ -4,6 +4,88 @@
     "sha256": "f3c629edb03d02f0a63110cb38d7bfdac3638b8e66034e701af517d90cac49b2",
     "version": 1
   },
+  "contract_coverage": {
+    "files": [
+      {
+        "candidates": [
+          "mock-sensor-a"
+        ],
+        "origin": "mock-sensor-a.csv",
+        "reason": null,
+        "selected": [
+          "mock-sensor-a"
+        ],
+        "status": "routed"
+      },
+      {
+        "candidates": [
+          "mock-sensor-b"
+        ],
+        "origin": "mock-sensor-b.jsonl",
+        "reason": null,
+        "selected": [
+          "mock-sensor-b"
+        ],
+        "status": "routed"
+      },
+      {
+        "candidates": [
+          "mock-sensor-c"
+        ],
+        "origin": "mock-sensor-c.csv",
+        "reason": null,
+        "selected": [
+          "mock-sensor-c"
+        ],
+        "status": "routed"
+      }
+    ],
+    "sources": [
+      {
+        "covered": true,
+        "matched_files": [
+          "mock-sensor-a.csv"
+        ],
+        "name": "mock-sensor-a",
+        "routed_files": [
+          "mock-sensor-a.csv"
+        ],
+        "routing_failures": []
+      },
+      {
+        "covered": true,
+        "matched_files": [
+          "mock-sensor-b.jsonl"
+        ],
+        "name": "mock-sensor-b",
+        "routed_files": [
+          "mock-sensor-b.jsonl"
+        ],
+        "routing_failures": []
+      },
+      {
+        "covered": true,
+        "matched_files": [
+          "mock-sensor-c.csv"
+        ],
+        "name": "mock-sensor-c",
+        "routed_files": [
+          "mock-sensor-c.csv"
+        ],
+        "routing_failures": []
+      }
+    ],
+    "summary": {
+      "covered_sources": 3,
+      "declared_sources": 3,
+      "files": 3,
+      "routed_files": 3,
+      "uncovered_sources": 0,
+      "unmatched_files": 0,
+      "unrouted_files": 0
+    },
+    "uncovered_sources": []
+  },
   "inputs": {
     "files": [
       {
