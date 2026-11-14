@@ -81,16 +81,22 @@
 - `monotonic`：契约要求 `monotonic: true` 时，输入流中出现 `ts` 小于此前最大 `ts` 的点。
 - `out_of_order`：无论是否要求单调性，输入流中出现时间回退的点。
 - `duplicate`：按稳定排序后，同一来源同一时间戳的后续出现；`duplicate_policy: allow` 时不标记。
+- `allow` 策略下同 ts 记录全部保留在时间轴中，作为并发采样点参与相邻 delta 计算；结构层可通过
+  `concurrent_point_indices()` 观察同 ts 点集合。
 - 三类异常都保留行号与来源文件，报告中以诊断条目呈现。
 
 ## 6. 间隔分类与漂移
 
 对排序后相邻点计算 `delta_ms`：
 
-1. `delta == 0`：`duplicate`。
+1. `delta == 0`：`mark` 策略下为 `duplicate`（`abs_dev = period`）；`allow` 策略下为 `concurrent`
+   （并发采样点，`abs_dev = 0`，不标记异常点，但保留在 delta 序列中）。
 2. `delta > max_gap_points * period_ms`：`gap`。
 3. `|delta - period| <= jitter_abs_ms` 或 `|delta - period| / period <= jitter_rel`：`on_time`。
 4. 其他：`jitter`。
+
+`on_time` / `jitter` / `gap` 称为可测间隔（`MEASURED_KINDS`）；零间隔 pair 一律不参与直方图、
+jitter 比例分母与漂移窗口。
 
 漂移检测使用非重复相邻间隔的滑动窗口：
 
@@ -103,10 +109,13 @@
 
 ## 7. 统计与 verdict
 
-- 直方图统计非重复相邻间隔的绝对偏差；桶边界为“less than or equal”，最后一行是 overflow。
+- 直方图统计可测相邻间隔（`on_time` / `jitter` / `gap`）的绝对偏差；桶边界为“less than or equal”，最后一行是 overflow。
 - `missing_estimate` 只统计被判为 `gap` 的相邻间隔。
-- `jitter_ratio` 为 jitter 相邻间隔数 / 非重复相邻间隔数。
-- `gap_ratio` 为估算丢失点 /（唯一观测点 + 估算丢失点）。
+- `jitter_ratio` 为 jitter 相邻间隔数 / 可测相邻间隔数。
+- `unique_points` 为去重后的时间戳数量；`allow` 下同 ts 的并发记录算一个去重键，
+  `gap_ratio` 分母（唯一观测点 + 估算丢失点）在两种策略下口径一致。
+- `allow` 策略的 source 额外输出 `counts.concurrent_pairs`（零间隔相邻对数）、
+  `counts.concurrent_points`（同 ts 组内点数）与 `rule_hits.concurrent`，作为策略生效的可观察痕迹。
 - verdict 的 fail 条件：单调性违例、gap 比例超限、parse error 比例超限、jitter 比例超限、无有效点。
 - 其他异常或 parse error 至少为 warn。
 - 全局 verdict 取所有 source verdict 的最大级别；未路由文件的 parse error 至少使全局为 warn。

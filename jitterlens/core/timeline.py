@@ -40,6 +40,20 @@ class SourceTimeline:
     def point_count(self) -> int:
         return len(self.points)
 
+    def concurrent_point_indices(self) -> list[int]:
+        """Sorted indices of points sharing a timestamp with another point.
+
+        This is a structural fact independent of ``duplicate_policy``: under
+        ``allow`` these points carry no flag and stay in the delta sequence,
+        but statistics can still count them as concurrent samples.
+        """
+        indices: set[int] = set()
+        for index in range(1, len(self.points)):
+            if self.points[index].ts_ms == self.points[index - 1].ts_ms:
+                indices.add(index - 1)
+                indices.add(index)
+        return sorted(indices)
+
     def structural_counts(self) -> dict[str, int]:
         counts = {"duplicate": 0, "monotonic": 0, "out_of_order": 0}
         for flag in self.flags:

@@ -7,7 +7,7 @@ from typing import Any
 
 from ..config import SourceContract
 from ..sources import ParseIssue
-from .classify import Classification
+from .classify import MEASURED_KINDS, Classification
 from .intervals import max_consecutive_abnormal
 from .timeline import SourceTimeline
 
@@ -28,9 +28,14 @@ def _ratio(numerator: float, denominator: float) -> float:
 
 
 def histogram(pairs: list[Any], buckets: tuple[int, ...]) -> list[dict[str, int | None]]:
+    """Absolute-deviation buckets over measured intervals only.
+
+    Zero-delta pairs (``duplicate``/``concurrent``) have no meaningful
+    deviation and are excluded.
+    """
     counts = [0 for _ in range(len(buckets) + 1)]
     for pair in pairs:
-        if pair.kind == "duplicate":
+        if pair.kind not in MEASURED_KINDS:
             continue
         placed = False
         for index, upper in enumerate(buckets):
@@ -106,16 +111,18 @@ def build_source_stats(
     }
     on_time_pairs = sum(1 for pair in pairs if pair.kind == "on_time")
     jitter_pairs = sum(1 for pair in pairs if pair.kind == "jitter")
-    nonduplicate_pairs = [pair for pair in pairs if pair.kind != "duplicate"]
+    measured_pairs = [pair for pair in pairs if pair.kind in MEASURED_KINDS]
     gap_pairs = [pair for pair in pairs if pair.kind == "gap"]
     missing = sum(
         max(0, (pair.delta_ms + source.period_ms - 1) // source.period_ms - 1)
         for pair in gap_pairs
     )
+    # Distinct sampling instants: same-ts records share one dedup key in both
+    # policies, so the gap_ratio denominator stays comparable.
     unique_points = len({point.ts_ms for point in points})
     records = len(points) + len(issues)
     gap_ratio = _ratio(missing, unique_points + missing)
-    jitter_ratio = _ratio(jitter_pairs, len(nonduplicate_pairs))
+    jitter_ratio = _ratio(jitter_pairs, len(measured_pairs))
     parse_ratio = _ratio(len(issues), records)
     abnormal_points = sum(1 for kinds in classification.point_kinds if kinds)
     counts = {
@@ -160,6 +167,13 @@ def build_source_stats(
         "out_of_order": kind_counts["out_of_order"],
         "parse_error": len(issues),
     }
+    if source.duplicate_policy == "allow":
+        # Observable trace of the allow policy: concurrent samples are kept
+        # out of every anomaly count, so they get their own fields.
+        concurrent_pairs = sum(1 for pair in pairs if pair.kind == "concurrent")
+        counts["concurrent_pairs"] = concurrent_pairs
+        counts["concurrent_points"] = len(timeline.concurrent_point_indices())
+        rule_hits["concurrent"] = concurrent_pairs
     return {
         "name": source.name,
         "verdict": verdict,

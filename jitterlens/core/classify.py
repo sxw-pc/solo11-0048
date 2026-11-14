@@ -9,6 +9,11 @@ from statistics import median_low
 from ..config import SourceContract
 from .timeline import SamplePoint, SourceTimeline
 
+#: Pair kinds that describe a real measured interval between two instants.
+#: Zero-delta pairs (``duplicate`` under mark, ``concurrent`` under allow)
+#: stay in the delta sequence but are never measured intervals.
+MEASURED_KINDS = ("on_time", "jitter", "gap")
+
 
 @dataclass(frozen=True)
 class PairClassification:
@@ -49,14 +54,21 @@ def classify_timeline(timeline: SourceTimeline, source: SourceContract) -> Class
         current = timeline.points[index]
         delta = current.ts_ms - previous.ts_ms
         if delta == 0:
+            if source.duplicate_policy == "allow":
+                # Concurrent samples at one instant: the pair stays in the
+                # delta sequence but is not a measured interval, so it gets
+                # no deviation and never falls into jitter/gap.
+                kind, abs_dev, rel_dev = "concurrent", 0, Fraction(0)
+            else:
+                kind, abs_dev, rel_dev = "duplicate", source.period_ms, Fraction(1)
             pairs.append(
                 PairClassification(
                     prev_index=index - 1,
                     cur_index=index,
                     delta_ms=0,
-                    abs_dev_ms=source.period_ms,
-                    kind="duplicate",
-                    rel_dev=Fraction(1),
+                    abs_dev_ms=abs_dev,
+                    kind=kind,
+                    rel_dev=rel_dev,
                 )
             )
             continue
@@ -92,7 +104,7 @@ def _detect_drift(
     source: SourceContract,
     points: list[SamplePoint],
 ) -> list[dict[str, int]]:
-    positive = [pair for pair in pairs if pair.kind != "duplicate"]
+    positive = [pair for pair in pairs if pair.kind in MEASURED_KINDS]
     window = source.drift_window
     if len(positive) < window * 2:
         return []

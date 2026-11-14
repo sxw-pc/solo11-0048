@@ -129,10 +129,15 @@ sources:
 
 判定优先级：
 
-1. `delta == 0` -> `duplicate`（不参与 on_time/jitter/gap 计数）。
+1. `delta == 0`：`duplicate_policy: mark` 时 -> `duplicate`（`abs_dev = period_ms`，不参与
+   on_time/jitter/gap 计数）；`duplicate_policy: allow` 时 -> `concurrent`（并发采样点，
+   `abs_dev = 0`，不标记异常点、不产生异常区间，但保留在 delta 序列中）。
 2. `delta > max_gap_points * period_ms` -> `gap`。
 3. `dev <= jitter_abs_ms` 或 `dev / period_ms <= jitter_rel` -> `on_time`（两个条件是“或”，边界包含）。
 4. 其他 -> `jitter`。
+
+`on_time` / `jitter` / `gap` 为可测间隔；零间隔 pair（`duplicate` / `concurrent`）不参与直方图、
+jitter 比例分母与漂移窗口。
 
 `jitter` 与 `gap` 会同时标记相邻两个点，便于异常区间覆盖事件发生的时间段。短间隔也可能被判为 jitter。
 
@@ -163,10 +168,10 @@ sources:
 每个 source 输出：
 
 - `records = valid_points + parse_errors`；
-- `unique_points = 去重后的时间戳数量`；
-- `timing`：全部相邻 delta（含 duplicate 产生的 0）的计数、均值、中位数、最大/最小值；
-- `histogram`：非重复相邻间隔的绝对偏差；每个桶条件为 `dev <= upper`，最后一项 `le_ms: null` 是 overflow；
-- `jitter_ratio = jitter 相邻间隔数 / 非重复相邻间隔数`；
+- `unique_points = 去重后的时间戳数量`（两种策略下同 ts 多条都算一个去重键）；
+- `timing`：全部相邻 delta（含零间隔 pair 产生的 0）的计数、均值、中位数、最大/最小值；
+- `histogram`：可测相邻间隔（`on_time` / `jitter` / `gap`）的绝对偏差；每个桶条件为 `dev <= upper`，最后一项 `le_ms: null` 是 overflow；
+- `jitter_ratio = jitter 相邻间隔数 / 可测相邻间隔数`；
 - `missing_estimate = sum(ceil(delta / period) - 1)`，只对 `gap` 分类的相邻间隔计算；
 - `gap_ratio = missing_estimate / (unique_points + missing_estimate)`；
 - `parse_error_ratio = parse_errors / records`；
@@ -174,6 +179,8 @@ sources:
   - `on_time`：分类为 on_time 的相邻间隔数；
   - `jitter` / `gap` / `clock_drift` / `duplicate` / `monotonic` / `out_of_order`：带该 kind 的点数；
   - `parse_error`：parse error 条数；
+  - `concurrent`（仅 `duplicate_policy: allow` 的 source）：零间隔相邻对数；
+- `counts.concurrent_pairs` / `counts.concurrent_points`（仅 `allow`）：零间隔相邻对数与同 ts 组内点数；
 - `unknown_field_count`：未知字段/列的出现次数。
 
 ### verdict

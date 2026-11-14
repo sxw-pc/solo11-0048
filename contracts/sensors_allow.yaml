@@ -1,0 +1,60 @@
+# Variant of the default contract that accepts concurrent samples for
+# mock-sensor-b (duplicate_policy: allow). All names, labels and timestamps
+# are fictional.
+version: 1
+generated_at: "2025-01-01T00:00:00Z"
+
+defaults:
+  period_ms: 1000
+  jitter_abs_ms: 25
+  jitter_rel: 0.02
+  max_gap_points: 3
+  max_gap_ratio: 0.05
+  fail_jitter_ratio: 0.25
+  max_parse_error_ratio: 0.05
+  monotonic: true
+  duplicate_policy: mark
+  merge_gap_points: 2
+  drift_window: 64
+  drift_threshold_rel: 0.007
+  downsample_threshold: 0.5
+  histogram_buckets: [5, 25, 50, 100, 250, 1000]
+  source_column: source
+  source_field: source
+  timestamp:
+    column: ts
+    unit: ms
+    format: epoch
+    tz: UTC
+
+sources:
+  - name: mock-sensor-a
+    match:
+      filename: "mock-sensor-a.csv"
+      value: mock-sensor-a
+    period_ms: 1000
+
+  - name: mock-sensor-b
+    match:
+      filename: "mock-sensor-b.jsonl"
+      value: mock-sensor-b
+    period_ms: 500
+    duplicate_policy: allow
+    timestamp:
+      column: ts
+      unit: us
+      format: epoch
+      tz: UTC
+
+  - name: mock-sensor-c
+    match:
+      filename: "mock-sensor-c.csv"
+      value: mock-sensor-c
+    period_ms: 2000
+    jitter_abs_ms: 25
+    jitter_rel: 0.02
+    timestamp:
+      column: ts
+      unit: ms
+      format: iso8601
+      tz: UTC
