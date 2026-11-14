@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from ..config import SourceContract
-from . import ParseIssue, RawPoint, parse_timestamp, select_source
+from . import ParseIssue, RawPoint, parse_timestamp_detail, select_source
 
 
 def _issue(source: str, origin: str, lineno: int, code: str, message: str) -> ParseIssue:
@@ -79,7 +79,7 @@ def read_jsonl(
                 )
                 continue
             try:
-                ts_ms = parse_timestamp(record[ts_column], chosen.timestamp)
+                parsed_ts = parse_timestamp_detail(record[ts_column], chosen.timestamp)
             except ValueError as exc:
                 issues.append(_issue(chosen.name, origin, lineno, "E_READ_003", str(exc)))
                 continue
@@ -97,11 +97,12 @@ def read_jsonl(
             )
             points.append(
                 RawPoint(
-                    ts_ms=ts_ms,
+                    ts_ms=parsed_ts.ts_ms,
                     source=chosen.name,
                     origin=origin,
                     lineno=lineno,
                     unknown_fields=unknown,
+                    rounding=parsed_ts.trace(record[ts_column]),
                 )
             )
     return points, issues

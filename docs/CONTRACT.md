@@ -104,9 +104,9 @@ sources:
 
 ### 时间戳
 
-- epoch 支持整数或十进制文本；`us` 转 `ms` 采用 ROUND_HALF_UP。
-- ISO-8601 支持 `Z` 和显式偏移；无时区按 UTC。
-- 时间戳统一为整数 Unix 毫秒。
+- epoch 支持整数或十进制文本；ISO-8601 支持 `Z` 和显式偏移；无时区按 UTC。
+- 所有格式先解析为精确有理数毫秒（`Decimal`/`Fraction`，无浮点），再由统一算子收口：精确值必须落在 `[0, 2**63 - 1]` ms 内（负值与越界一律拒绝，报 `E_READ_003`），然后按 ROUND_HALF_UP 落成整数毫秒。
+- 等价表述（`s`/`ms`/`us`/ISO-8601）必然得到同一个整毫秒；亚毫秒舍入会在该 source 报告的 `rounding` 块中留下 `{origin, lineno, raw, exact_ms, ts_ms, direction}` 事件。
 
 ## 4. 结构异常
 

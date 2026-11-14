@@ -71,7 +71,9 @@
 
 ## 4. 时间戳与排序
 
-- epoch 单位 `ms` / `us` / `s` 使用 `Decimal` 转换到整数毫秒；`us` 转毫秒时按 ROUND_HALF_UP。
+- 所有时间戳走统一的精确有理数归一管道：解析阶段只用 `Decimal`/`Fraction` 保留完整精度（epoch 按单位 `s`/`ms`/`us` 换算，ISO-8601 按微秒差值换算），不使用二进制浮点。
+- 归一算子 `normalize_millis` 是唯一的收口径：先按精确值拒绝越界（`MIN_EPOCH_MS = 0`、`MAX_EPOCH_MS = 2**63 - 1`，与台账 SQLite 的 int64 存储同界），再按 ROUND_HALF_UP（`floor(exact + 1/2)`，非负域无歧义）落成整数毫秒。等价表述（s/ms/us/ISO-8601）必然落到同一个整毫秒。
+- 发生亚毫秒舍入的点在 `RawPoint` 上留下 `RoundingTrace`（原始文本、精确毫秒值、舍入方向 up/down），报告每个 source 的 `rounding` 块汇总这些事件，便于事后核对。
 - ISO-8601 使用 `datetime.fromisoformat`，支持 `Z` 与显式偏移；无时区时按契约 `UTC`。
 - 内部点结构为 `SamplePoint(ts_ms, source, origin, lineno, input_seq, unknown_fields)`。
 - 结构异常使用输入顺序判断；间隔异常使用排序后顺序判断。

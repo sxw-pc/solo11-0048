@@ -6,7 +6,7 @@ from statistics import median
 from typing import Any
 
 from ..config import SourceContract
-from ..sources import ParseIssue
+from ..sources import ROUNDING_POLICY, ParseIssue
 from .classify import Classification
 from .intervals import max_consecutive_abnormal
 from .timeline import SourceTimeline
@@ -90,6 +90,7 @@ def build_source_stats(
     issues: list[ParseIssue],
     intervals: list[dict[str, object]],
     unknown_field_count: int,
+    rounding_events: list[dict[str, Any]] | None = None,
 ) -> dict[str, object]:
     points = timeline.points
     pairs = classification.pairs
@@ -133,6 +134,7 @@ def build_source_stats(
         "clock_drift": kind_counts["clock_drift"],
     }
     verdict, reasons = _verdict(counts, gap_ratio, jitter_ratio, parse_ratio, source)
+    rounding = list(rounding_events) if rounding_events else []
     deltas = [pair.delta_ms for pair in pairs]
     timing: dict[str, int | float | None] = {
         "delta_count": len(deltas),
@@ -184,6 +186,11 @@ def build_source_stats(
             for issue in sorted(issues, key=lambda issue: (issue.origin, issue.lineno, issue.code))
         ],
         "unknown_field_count": unknown_field_count,
+        "rounding": {
+            "policy": ROUNDING_POLICY,
+            "event_count": len(rounding),
+            "events": rounding,
+        },
         "contract": {
             "period_ms": source.period_ms,
             "jitter_abs_ms": source.jitter_abs_ms,

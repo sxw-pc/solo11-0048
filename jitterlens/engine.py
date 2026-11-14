@@ -18,7 +18,7 @@ from .ledger import record_run
 from .report.html_report import write_html
 from .report.jsonreport import write_json
 from .report.markdown import write_markdown
-from .sources import ParseIssue, ReadResult, read_inputs
+from .sources import ParseIssue, RawPoint, ReadResult, read_inputs
 
 SCHEMA_VERSION = 1
 
@@ -91,6 +91,28 @@ def _issues_for_source(issues: list[ParseIssue], name: str) -> list[ParseIssue]:
     return [issue for issue in issues if issue.source == name]
 
 
+def _rounding_events(points: list[RawPoint]) -> dict[str, list[dict[str, Any]]]:
+    """Collect sub-millisecond rounding traces per source for the report."""
+    events: dict[str, list[dict[str, Any]]] = {}
+    for point in points:
+        trace = point.rounding
+        if trace is None:
+            continue
+        events.setdefault(point.source, []).append(
+            {
+                "origin": point.origin,
+                "lineno": point.lineno,
+                "raw": trace.raw,
+                "exact_ms": trace.exact_ms,
+                "ts_ms": point.ts_ms,
+                "direction": trace.direction,
+            }
+        )
+    for grouped in events.values():
+        grouped.sort(key=lambda item: (item["origin"], item["lineno"]))
+    return events
+
+
 def analyze(
     contract_path: str | Path,
     input_dir: str | Path,
@@ -103,6 +125,7 @@ def analyze(
     manifest = _manifest(input_root)
     read_result: ReadResult = read_inputs(input_root, contract)
     timelines = build_timelines(read_result.points, contract)
+    rounding = _rounding_events(read_result.points)
     analyses: list[dict[str, Any]] = []
     source_reports: list[dict[str, Any]] = []
     all_intervals: list[dict[str, Any]] = []
@@ -125,7 +148,8 @@ def analyze(
         )
         unknown_count = sum(len(point.unknown_fields) for point in timeline.points)
         stats = build_source_stats(
-            source, timeline, classification, issues, intervals, unknown_count
+            source, timeline, classification, issues, intervals, unknown_count,
+            rounding.get(source.name),
         )
         source_reports.append(stats)
         all_intervals.extend(intervals)

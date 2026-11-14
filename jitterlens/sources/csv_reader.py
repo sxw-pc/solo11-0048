@@ -6,7 +6,7 @@ import csv
 from pathlib import Path
 
 from ..config import SourceContract
-from . import ParseIssue, RawPoint, _header_columns, parse_timestamp, select_source
+from . import ParseIssue, RawPoint, _header_columns, parse_timestamp_detail, select_source
 
 
 def _issue(source: str, origin: str, lineno: int, code: str, message: str) -> ParseIssue:
@@ -119,7 +119,7 @@ def read_csv(
                     )
                     continue
                 try:
-                    ts_ms = parse_timestamp(record.get(ts_column), chosen.timestamp)
+                    parsed_ts = parse_timestamp_detail(record.get(ts_column), chosen.timestamp)
                 except ValueError as exc:
                     issues.append(_issue(chosen.name, origin, lineno, "E_READ_003", str(exc)))
                     continue
@@ -128,11 +128,12 @@ def read_csv(
                 )
                 points.append(
                     RawPoint(
-                        ts_ms=ts_ms,
+                        ts_ms=parsed_ts.ts_ms,
                         source=chosen.name,
                         origin=origin,
                         lineno=lineno,
                         unknown_fields=unknown,
+                        rounding=parsed_ts.trace(record.get(ts_column)),
                     )
                 )
         except csv.Error as exc:

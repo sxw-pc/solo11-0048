@@ -227,6 +227,11 @@
           "origin": "mock-sensor-a.csv"
         }
       ],
+      "rounding": {
+        "event_count": 0,
+        "events": [],
+        "policy": "half_up"
+      },
       "rule_hits": {
         "clock_drift": 0,
         "duplicate": 0,
@@ -327,6 +332,11 @@
           "origin": "mock-sensor-b.jsonl"
         }
       ],
+      "rounding": {
+        "event_count": 0,
+        "events": [],
+        "policy": "half_up"
+      },
       "rule_hits": {
         "clock_drift": 0,
         "duplicate": 1,
@@ -414,6 +424,11 @@
       "name": "mock-sensor-c",
       "parse_error_ratio": 0.0,
       "parse_errors": [],
+      "rounding": {
+        "event_count": 0,
+        "events": [],
+        "policy": "half_up"
+      },
       "rule_hits": {
         "clock_drift": 129,
         "duplicate": 0,
